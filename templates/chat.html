@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Online Chat</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<div class="chat-container">
+    <h2>💬 Real-Time Chat Room</h2>
+
+    <!-- Join Section -->
+    <input id="username" placeholder="Enter your name">
+    <input id="room" placeholder="Enter room name">
+    <button onclick="joinRoom()">Join Room</button>
+
+    <hr>
+
+    <!-- Chat Section -->
+    <div id="messages"></div>
+    <input id="message" placeholder="Type message">
+    <button onclick="sendMessage()">Send</button>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+
+<script>
+var socket = io();
+var currentRoom = "";
+
+function joinRoom() {
+    var username = document.getElementById("username").value;
+    var room = document.getElementById("room").value;
+
+    if (username && room) {
+        currentRoom = room;
+        socket.emit('join', { username: username, room: room });
+    }
+}
+
+socket.on('message', function(msg) {
+    var messages = document.getElementById("messages");
+    messages.innerHTML += "<div>" + msg + "</div>";
+    messages.scrollTop = messages.scrollHeight;
+});
+
+function sendMessage() {
+    var username = document.getElementById("username").value;
+    var message = document.getElementById("message").value;
+
+    if (username && message && currentRoom) {
+        socket.emit('message', {
+            msg: username + ": " + message,
+            room: currentRoom
+        });
+
+        document.getElementById("message").value = "";
+    }
+}
+</script>
+
+</body>
+</html>
