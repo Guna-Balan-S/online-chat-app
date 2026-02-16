@@ -2,7 +2,7 @@ import eventlet
 eventlet.monkey_patch()
 
 from flask import Flask, render_template, request, redirect, session
-from flask_socketio import SocketIO, send, join_room, leave_room, emit
+from flask_socketio import SocketIO, join_room, emit
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 
@@ -14,14 +14,13 @@ app.config['SECRET_KEY'] = 'super-secret-key'
 socketio = SocketIO(
     app,
     cors_allowed_origins="*",
-    async_mode="eventlet",
-    transports=["polling"]
+    async_mode="eventlet"
 )
 
-DATABASE = 'users_fresh.db'
+DATABASE = 'users.db'
 
-users = {}          # username -> socket id
-rooms = set(["main"])  # default room
+users = {}  # username -> socket id
+
 
 # ------------------ DATABASE ------------------
 
@@ -37,6 +36,7 @@ def init_db():
     conn.close()
 
 init_db()
+
 
 # ------------------ ROUTES ------------------
 
@@ -54,7 +54,6 @@ def get_users():
         'SELECT username FROM users'
     ).fetchall()
     conn.close()
-
     return {'users': [u[0] for u in users_list]}
 
 
@@ -86,7 +85,6 @@ def register():
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
-
         hashed_password = generate_password_hash(password)
 
         conn = sqlite3.connect(DATABASE)
@@ -100,8 +98,8 @@ def register():
             conn.close()
             return render_template('register.html',
                                    error="User already exists")
-
         conn.close()
+
         return redirect('/login')
 
     return render_template('register.html')
@@ -109,11 +107,9 @@ def register():
 
 # ------------------ SOCKET EVENTS ------------------
 
-# 🔵 CONNECT / DISCONNECT
-
 @socketio.on('connect')
 def handle_connect():
-    print("User connected:", request.sid)
+    print("Connected:", request.sid)
 
 
 @socketio.on('disconnect')
@@ -124,30 +120,7 @@ def handle_disconnect():
             break
 
 
-# 🔵 JOIN DEFAULT ROOM
-
-@socketio.on('join')
-def handle_join(data):
-    username = data['username']
-    room = data['room']
-    users[username] = request.sid
-    join_room(room)
-    send(f"{username} joined the room.", to=room)
-
-# 🔵 CREATE ROOM
-
-@socketio.on('create_room')
-def handle_create_room(data):
-    room = data['room']
-    rooms.add(room)
-
-    emit('room_created',
-         {'room': room},
-         broadcast=True)
-
-
 # 🔵 JOIN ROOM
-
 @socketio.on('join_room_event')
 def handle_join_room(data):
     username = data['username']
@@ -156,11 +129,10 @@ def handle_join_room(data):
     users[username] = request.sid
     join_room(room)
 
-    send(f"{username} joined {room}", to=room)
+    emit('room_joined', {'room': room}, to=request.sid)
 
 
 # 🔵 ROOM MESSAGE
-
 @socketio.on('room_message')
 def handle_room_message(data):
     emit(
@@ -175,7 +147,6 @@ def handle_room_message(data):
 
 
 # 🔵 PRIVATE MESSAGE
-
 @socketio.on('private_message')
 def handle_private(data):
     sender = data['from']
@@ -187,35 +158,25 @@ def handle_private(data):
             'private_message',
             {
                 'from': sender,
+                'to': recipient,
                 'msg': message
             },
             to=users[recipient]
         )
 
-    # send back to sender
+    # Send back to sender
     emit(
         'private_message',
         {
             'from': sender,
+            'to': recipient,
             'msg': message
         },
         to=request.sid
     )
 
 
-# 🔵 TYPING INDICATOR
-
-@socketio.on('typing')
-def handle_typing(data):
-    emit('typing', data, to=data['room'], include_self=False)
-
-
-@socketio.on('stop_typing')
-def handle_stop_typing(data):
-    emit('stop_typing', data, to=data['room'], include_self=False)
-
-
 # ------------------ RUN ------------------
 
 if __name__ == "__main__":
-    socketio.run(app)
+    socketio.run(app, host="0.0.0.0", port=5000)

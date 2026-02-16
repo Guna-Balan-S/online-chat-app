@@ -3,9 +3,7 @@
 <head>
     <title>Online Chat</title>
 
-    <!-- Bootstrap -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
 
     <style>
         body { overflow: hidden; }
@@ -19,209 +17,140 @@
             word-wrap: break-word;
         }
 
-        .sent { background-color: #dcf8c6; align-self: flex-end; }
-        .received { background-color: white; align-self: flex-start; }
+        .sent { background: #dcf8c6; align-self: flex-end; }
+        .received { background: white; align-self: flex-start; }
 
-        #messages { display: flex; flex-direction: column; }
+        #messages {
+            display: flex;
+            flex-direction: column;
+        }
     </style>
 </head>
 
 <body>
+
 <div class="container-fluid vh-100">
-  <div class="row h-100">
+<div class="row h-100">
 
     <!-- LEFT SIDEBAR -->
     <div class="col-3 bg-dark text-white p-3">
 
         <h5>💬 Rooms</h5>
 
-        <input type="text" id="newRoomName"
+        <input type="text" id="roomName"
                class="form-control mb-2"
                placeholder="Enter room name">
 
         <button class="btn btn-success w-100 mb-3"
-                onclick="createRoom()">Create / Join Room</button>
+                onclick="joinRoom()">Join Room</button>
 
         <div class="list-group mb-4" id="roomList"></div>
 
         <h6>👤 Private Chat</h6>
 
-       <input type="text" id="privateUsername"
-              class="form-control mb-2"
-              placeholder="Enter username">
+        <input type="text" id="privateUser"
+               class="form-control mb-2"
+               placeholder="Enter username">
 
-       <button class="btn btn-primary w-100 mb-3"
-              onclick="startPrivateChat()">
-              Start Private Chat
-      </button>
+        <button class="btn btn-primary w-100 mb-3"
+                onclick="startPrivateChat()">Start</button>
 
-      <div class="list-group" id="privateList"></div>
-
+        <div class="list-group" id="privateList"></div>
 
     </div>
 
-    <!-- RIGHT CHAT AREA -->
+    <!-- RIGHT CHAT -->
     <div class="col-9 d-flex flex-column">
 
-        <!-- Header -->
-        <div class="p-3 border-bottom d-flex align-items-center">
-            <div class="rounded-circle bg-primary text-white d-flex justify-content-center align-items-center"
-                 style="width:40px;height:40px;">
-                {{ username[0]|upper }}
-            </div>
-            <h6 class="ms-3 mb-0" id="chatHeader">Select room or user</h6>
+        <div class="p-3 border-bottom">
+            <h6 id="chatHeader">Select room or user</h6>
         </div>
 
-        <!-- Messages -->
-        <div id="messages" class="flex-grow-1 p-3"
+        <div id="messages"
+             class="flex-grow-1 p-3"
              style="overflow-y:auto; background:#ece5dd;"></div>
 
-        <!-- Typing Indicator -->
-        <div id="typing-indicator"
-             style="height:20px; font-size:14px; color:gray; padding-left:15px;"></div>
-
-        <!-- Input -->
         <div class="p-3 border-top bg-light">
             <div class="input-group">
-                <input id="message" type="text" class="form-control"
-                       placeholder="Type a message...">
-                <button onclick="sendMessage()" class="btn btn-success">
-                    <i class="bi bi-send-fill"></i>
-                </button>
+                <input id="message" class="form-control"
+                       placeholder="Type message">
+                <button onclick="sendMessage()"
+                        class="btn btn-success">Send</button>
             </div>
         </div>
 
     </div>
-  </div>
+
+</div>
 </div>
 
 <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 
 <script>
 
-var socket = io({ transports:["polling"], upgrade:false });
-
+var socket = io();
 var username = "{{ username }}";
 
 var currentRoom = null;
 var selectedUser = null;
 
-var roomConversations = {};
-var privateConversations = {};
+var roomMessages = {};
+var privateMessages = {};
 
-var typing = false;
-var timeout = undefined;
+/* JOIN ROOM */
 
-/* ================= JOIN ================= */
+function joinRoom() {
 
-socket.on("connect", function() {
-    console.log("Connected");
-});
+    var room = document.getElementById("roomName").value.trim();
+    if (room === "") return;
 
-/* ================= ROOM SYSTEM ================= */
-
-function createRoom() {
-
-    var roomName = document.getElementById("newRoomName").value.trim();
-    if (roomName === "") return;
-
-    addRoomToList(roomName);
-    joinRoom(roomName);
-
-    document.getElementById("newRoomName").value = "";
-}
-
-function addRoomToList(roomName) {
-
-    if (document.getElementById("room-"+roomName)) return;
-
-    var item = document.createElement("a");
-    item.className = "list-group-item list-group-item-action";
-    item.id = "room-"+roomName;
-    item.innerText = roomName;
-
-    item.onclick = function() {
-        joinRoom(roomName);
-    };
-
-    document.getElementById("roomList").appendChild(item);
-}
-
-function joinRoom(roomName) {
-
-    selectedUser = null;
-    currentRoom = roomName;
-
-    socket.emit("join", {
+    socket.emit("join_room_event", {
         username: username,
-        room: roomName
+        room: room
     });
 
-    document.getElementById("chatHeader").innerText = roomName;
-    loadRoomMessages(roomName);
+    currentRoom = room;
+    selectedUser = null;
+
+    document.getElementById("chatHeader").innerText = room;
+
+    if (!roomMessages[room])
+        roomMessages[room] = [];
+
+    loadMessages(roomMessages[room]);
 }
 
-function loadRoomMessages(roomName) {
+/* PRIVATE CHAT */
 
-    var messagesDiv = document.getElementById("messages");
-    messagesDiv.innerHTML = "";
+function startPrivateChat() {
 
-    if (roomConversations[roomName]) {
-        roomConversations[roomName].forEach(displayMessage);
-    }
+    var user = document.getElementById("privateUser").value.trim();
+    if (user === "" || user === username) return;
+
+    selectedUser = user;
+    currentRoom = null;
+
+    document.getElementById("chatHeader").innerText = user;
+
+    if (!privateMessages[user])
+        privateMessages[user] = [];
+
+    loadMessages(privateMessages[user]);
 }
 
-/* ================= PRIVATE USERS ================= */
-
-fetch('/users')
-.then(res => res.json())
-.then(data => {
-
-    var list = document.getElementById("userList");
-
-    data.users.forEach(function(user){
-
-        if (user !== username) {
-
-            var item = document.createElement("a");
-            item.className = "list-group-item list-group-item-action";
-            item.innerText = user;
-
-            item.onclick = function(){
-                currentRoom = null;
-                selectedUser = user;
-                document.getElementById("chatHeader").innerText = user;
-                loadPrivateMessages(user);
-            };
-
-            list.appendChild(item);
-        }
-    });
-});
-
-function loadPrivateMessages(user) {
-
-    var messagesDiv = document.getElementById("messages");
-    messagesDiv.innerHTML = "";
-
-    if (privateConversations[user]) {
-        privateConversations[user].forEach(displayMessage);
-    }
-}
-
-/* ================= SEND MESSAGE ================= */
+/* SEND MESSAGE */
 
 function sendMessage() {
 
     var input = document.getElementById("message");
-    var message = input.value.trim();
-    if (message === "") return;
+    var msg = input.value.trim();
+    if (msg === "") return;
 
     if (currentRoom) {
 
         socket.emit("room_message", {
             from: username,
-            msg: message,
+            msg: msg,
             room: currentRoom
         });
 
@@ -230,73 +159,31 @@ function sendMessage() {
         socket.emit("private_message", {
             from: username,
             to: selectedUser,
-            msg: message
+            msg: msg
         });
 
     } else {
-        alert("Select room or user");
+        alert("Select room or user first");
         return;
     }
 
     input.value = "";
 }
 
-
-function startPrivateChat() {
-
-    var user = document.getElementById("privateUsername").value.trim();
-
-    if (user === "" || user === username) {
-        alert("Enter valid username");
-        return;
-    }
-
-    selectedUser = user;
-    currentRoom = null;
-
-    document.getElementById("chatHeader").innerText = user;
-
-    addPrivateToList(user);
-    loadPrivateMessages(user);
-
-    document.getElementById("privateUsername").value = "";
-}
-
-
-function addPrivateToList(user) {
-
-    if (document.getElementById("private-" + user)) return;
-
-    var item = document.createElement("a");
-    item.className = "list-group-item list-group-item-action";
-    item.id = "private-" + user;
-    item.innerText = user;
-
-    item.onclick = function() {
-        selectedUser = user;
-        currentRoom = null;
-        document.getElementById("chatHeader").innerText = user;
-        loadPrivateMessages(user);
-    };
-
-    document.getElementById("privateList").appendChild(item);
-}
-
-
-/* ================= RECEIVE ROOM MESSAGE ================= */
+/* RECEIVE ROOM MESSAGE */
 
 socket.on("room_message", function(data){
 
-    if (!roomConversations[data.room])
-        roomConversations[data.room] = [];
+    if (!roomMessages[data.room])
+        roomMessages[data.room] = [];
 
-    roomConversations[data.room].push(data);
+    roomMessages[data.room].push(data);
 
     if (currentRoom === data.room)
-        displayMessage(data);
+        display(data);
 });
 
-/* ================= RECEIVE PRIVATE ================= */
+/* RECEIVE PRIVATE MESSAGE */
 
 socket.on("private_message", function(data){
 
@@ -304,20 +191,18 @@ socket.on("private_message", function(data){
         ? data.to
         : data.from;
 
-    if (!privateConversations[chatUser])
-        privateConversations[chatUser] = [];
+    if (!privateMessages[chatUser])
+        privateMessages[chatUser] = [];
 
-    privateConversations[chatUser].push(data);
-
-    addPrivateToList(chatUser);
+    privateMessages[chatUser].push(data);
 
     if (selectedUser === chatUser)
-        displayMessage(data);
+        display(data);
 });
 
-/* ================= DISPLAY ================= */
+/* DISPLAY */
 
-function displayMessage(data){
+function display(data){
 
     var div = document.createElement("div");
     div.classList.add("message");
@@ -329,11 +214,18 @@ function displayMessage(data){
 
     div.innerText = data.from + ": " + data.msg;
 
-    var messagesDiv = document.getElementById("messages");
-    messagesDiv.appendChild(div);
-    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    var box = document.getElementById("messages");
+    box.appendChild(div);
+    box.scrollTop = box.scrollHeight;
+}
+
+function loadMessages(list){
+    var box = document.getElementById("messages");
+    box.innerHTML = "";
+    list.forEach(display);
 }
 
 </script>
+
 </body>
 </html>
