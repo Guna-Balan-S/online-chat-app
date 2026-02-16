@@ -6,6 +6,8 @@ from flask_socketio import SocketIO, send, join_room, emit
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 
+# ------------------ APP CONFIG ------------------
+
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'super-secret-key'
 
@@ -16,12 +18,13 @@ socketio = SocketIO(
     transports=["polling"]
 )
 
+DATABASE = 'users.db'
 users = {}
 
 # ------------------ DATABASE ------------------
 
 def init_db():
-    conn = sqlite3.connect('users.db')
+    conn = sqlite3.connect(DATABASE)
     conn.execute('''
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -32,7 +35,6 @@ def init_db():
     conn.close()
 
 init_db()
-
 
 # ------------------ ROUTES ------------------
 
@@ -49,18 +51,19 @@ def login():
         username = request.form['username']
         password = request.form['password']
 
-        conn = sqlite3.connect('users.db')
+        conn = sqlite3.connect(DATABASE)
         user = conn.execute(
             'SELECT * FROM users WHERE username=?',
             (username,)
         ).fetchone()
         conn.close()
 
+        # Secure password check
         if user and check_password_hash(user[2], password):
             session['username'] = username
             return redirect('/')
 
-        return "Invalid credentials"
+        return render_template('login.html', error="Invalid username or password")
 
     return render_template('login.html')
 
@@ -73,7 +76,7 @@ def register():
 
         hashed_password = generate_password_hash(password)
 
-        conn = sqlite3.connect('users.db')
+        conn = sqlite3.connect(DATABASE)
         try:
             conn.execute(
                 'INSERT INTO users (username, password) VALUES (?, ?)',
@@ -81,10 +84,10 @@ def register():
             )
             conn.commit()
         except sqlite3.IntegrityError:
-            return "User already exists"
-        finally:
             conn.close()
+            return render_template('register.html', error="User already exists")
 
+        conn.close()
         return redirect('/login')
 
     return render_template('register.html')
