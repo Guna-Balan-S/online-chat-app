@@ -16,16 +16,23 @@
 
     <hr>
 
+<input id="toUser" placeholder="Send to username (private)">
+<button onclick="sendPrivate()">Send Private</button>
+
+
     <!-- Chat Section -->
     <div id="messages"></div>
     <input id="message" placeholder="Type message">
     <button onclick="sendMessage()">Send</button>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 
 <script>
-var socket = io();
+var socket = io({
+    transports: ["polling"],
+    upgrade: false
+});
 var currentRoom = "";
 
 function joinRoom() {
@@ -57,6 +64,29 @@ function sendMessage() {
         document.getElementById("message").value = "";
     }
 }
+
+function sendPrivate() {
+    var toUser = document.getElementById("toUser").value;
+    var message = document.getElementById("message").value;
+    var username = "{{ username }}";
+
+    if (toUser && message) {
+        socket.emit("private_message", {
+            to: toUser,
+            from: username,
+            msg: message
+        });
+        document.getElementById("message").value = "";
+    }
+}
+
+socket.on("private_message", function(msg) {
+    var messages = document.getElementById("messages");
+    messages.innerHTML += "<div style='color:red'>" + msg + "</div>";
+});
+
+
+
 </script>
 
 </body>
