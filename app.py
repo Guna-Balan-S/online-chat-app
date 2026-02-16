@@ -130,12 +130,9 @@ def handle_disconnect():
 def handle_join(data):
     username = data['username']
     room = data['room']
-
     users[username] = request.sid
     join_room(room)
-
-    send(f"{username} joined {room}", to=room)
-
+    send(f"{username} joined the room.", to=room)
 
 # 🔵 CREATE ROOM
 
@@ -164,9 +161,17 @@ def handle_join_room(data):
 
 # 🔵 ROOM MESSAGE
 
-@socketio.on('message')
-def handle_message(data):
-    send(data['msg'], to=data['room'])
+@socketio.on('room_message')
+def handle_room_message(data):
+    emit(
+        'room_message',
+        {
+            'from': data['from'],
+            'msg': data['msg'],
+            'room': data['room']
+        },
+        to=data['room']
+    )
 
 
 # 🔵 PRIVATE MESSAGE
