@@ -3,19 +3,18 @@ eventlet.monkey_patch()
 
 from flask import Flask, render_template, request, redirect, session
 from flask_socketio import SocketIO, send, join_room, emit
-import sqlite3
 from werkzeug.security import generate_password_hash, check_password_hash
-
+import sqlite3
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'secret!'
+app.config['SECRET_KEY'] = 'super-secret-key'
+
 socketio = SocketIO(
     app,
     cors_allowed_origins="*",
     async_mode="eventlet",
     transports=["polling"]
 )
-
 
 users = {}
 
@@ -25,14 +24,15 @@ def init_db():
     conn = sqlite3.connect('users.db')
     conn.execute('''
         CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY,
-            username TEXT UNIQUE,
-            password TEXT
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL
         )
     ''')
     conn.close()
 
 init_db()
+
 
 # ------------------ ROUTES ------------------
 
@@ -51,18 +51,15 @@ def login():
 
         conn = sqlite3.connect('users.db')
         user = conn.execute(
-             'SELECT * FROM users WHERE username=?',
-              (username,)
+            'SELECT * FROM users WHERE username=?',
+            (username,)
         ).fetchone()
+        conn.close()
 
         if user and check_password_hash(user[2], password):
-               session['username'] = username
-               return redirect('/')
-
-
-        if user:
             session['username'] = username
             return redirect('/')
+
         return "Invalid credentials"
 
     return render_template('login.html')
@@ -73,6 +70,7 @@ def register():
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
+
         hashed_password = generate_password_hash(password)
 
         conn = sqlite3.connect('users.db')
@@ -82,7 +80,7 @@ def register():
                 (username, hashed_password)
             )
             conn.commit()
-        except:
+        except sqlite3.IntegrityError:
             return "User already exists"
         finally:
             conn.close()
@@ -90,6 +88,7 @@ def register():
         return redirect('/login')
 
     return render_template('register.html')
+
 
 # ------------------ SOCKET EVENTS ------------------
 
@@ -100,6 +99,7 @@ def handle_join(data):
 
     users[username] = request.sid
     join_room(room)
+
     send(f"{username} joined the room.", to=room)
 
 
@@ -115,18 +115,23 @@ def handle_private(data):
     sender = data['from']
 
     if recipient in users:
-        emit('private_message',
-             f"(Private) {sender}: {message}",
-             to=users[recipient])
+        emit(
+            'private_message',
+            f"(Private) {sender}: {message}",
+            to=users[recipient]
+        )
 
-    # ALSO send back to sender
-    emit('private_message',
-         f"(Private) You: {message}",
-         to=request.sid)
+    emit(
+        'private_message',
+        f"(Private) You: {message}",
+        to=request.sid
+    )
+
 
 @socketio.on('connect')
 def handle_connect():
     print("User connected:", request.sid)
+
 
 @socketio.on('disconnect')
 def handle_disconnect():
@@ -136,10 +141,7 @@ def handle_disconnect():
             break
 
 
-
 # ------------------ RUN ------------------
 
 if __name__ == "__main__":
     socketio.run(app)
-
-

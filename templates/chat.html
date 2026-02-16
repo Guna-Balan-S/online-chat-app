@@ -2,11 +2,43 @@
 <html>
 <head>
     <title>Online Chat</title>
-    <link rel="stylesheet" href="/static/style.css">
+
+    <!-- Bootstrap -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
 
+    <style>
+        body {
+            overflow: hidden;
+        }
+
+        .message {
+            max-width: 60%;
+            padding: 10px 15px;
+            border-radius: 18px;
+            margin-bottom: 10px;
+            clear: both;
+            font-size: 14px;
+            word-wrap: break-word;
+        }
+
+        .sent {
+            background-color: #dcf8c6;
+            float: right;
+        }
+
+        .received {
+            background-color: white;
+            float: left;
+        }
+
+        #messages {
+            display: flex;
+            flex-direction: column;
+        }
+    </style>
 </head>
+
 <body>
 
 <div class="container-fluid vh-100">
@@ -17,10 +49,7 @@
       <h5 class="mb-4">💬 Chats</h5>
       <div class="list-group">
         <a href="#" class="list-group-item list-group-item-action active">
-          Friend 1
-        </a>
-        <a href="#" class="list-group-item list-group-item-action">
-          Friend 2
+          Main Room
         </a>
       </div>
     </div>
@@ -28,19 +57,18 @@
     <!-- RIGHT CHAT AREA -->
     <div class="col-9 d-flex flex-column">
 
-      <!-- Chat Header -->
+      <!-- Header -->
       <div class="p-3 border-bottom d-flex align-items-center">
         <div class="rounded-circle bg-primary text-white d-flex justify-content-center align-items-center"
              style="width:40px;height:40px;">
-          F
+          {{ username[0]|upper }}
         </div>
-        <h6 class="ms-3 mb-0">Friend Name</h6>
+        <h6 class="ms-3 mb-0">Main Chat Room</h6>
       </div>
 
       <!-- Messages -->
       <div id="messages" class="flex-grow-1 p-3"
            style="overflow-y:auto; background:#ece5dd;">
-
       </div>
 
       <!-- Input -->
@@ -58,6 +86,7 @@
   </div>
 </div>
 
+<!-- Socket.IO -->
 <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 
 <script>
@@ -67,23 +96,44 @@
     });
 
     var username = "{{ username }}";
+    var room = "main";
 
+    // Auto join when connected
+    socket.on("connect", function() {
+        socket.emit("join", {
+            username: username,
+            room: room
+        });
+    });
+
+    // Send message
     function sendMessage() {
-        var message = document.getElementById("message").value;
+        var input = document.getElementById("message");
+        var message = input.value.trim();
+
+        if (message === "") return;   // prevent empty message
 
         socket.emit("message", {
             msg: username + ": " + message,
-            room: "main"
+            room: room
         });
 
-        document.getElementById("message").value = "";
+        input.value = "";
     }
 
+    // Send on Enter key
+    document.getElementById("message").addEventListener("keypress", function(e) {
+        if (e.key === "Enter") {
+            sendMessage();
+        }
+    });
+
+    // Receive message
     socket.on("message", function(msg) {
         var div = document.createElement("div");
         div.classList.add("message");
 
-        if (msg.includes(username)) {
+        if (msg.startsWith(username + ":")) {
             div.classList.add("sent");
         } else {
             div.classList.add("received");
@@ -91,12 +141,11 @@
 
         div.innerText = msg;
 
-        document.getElementById("messages").appendChild(div);
-        document.getElementById("messages").scrollTop =
-            document.getElementById("messages").scrollHeight;
+        var messagesDiv = document.getElementById("messages");
+        messagesDiv.appendChild(div);
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
     });
 </script>
-
 
 </body>
 </html>
