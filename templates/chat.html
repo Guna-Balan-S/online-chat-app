@@ -101,28 +101,35 @@
     });
 
     var username = "{{ username }}";
-    var room = "main";
+    var selectedUser = null;   // ✅ IMPORTANT
     var typing = false;
     var timeout = undefined;
 
-    // Auto join
+    // Auto join main
     socket.on("connect", function() {
         socket.emit("join", {
             username: username,
-            room: room
+            room: "main"
         });
     });
 
-    // Send message
+    // Send Private Message
     function sendMessage() {
+
+        if (!selectedUser) {
+            alert("Select a user to chat");
+            return;
+        }
+
         var input = document.getElementById("message");
         var message = input.value.trim();
 
         if (message === "") return;
 
-        socket.emit("message", {
-            msg: username + ": " + message,
-            room: room
+        socket.emit("private_message", {
+            from: username,
+            to: selectedUser,
+            msg: message
         });
 
         input.value = "";
@@ -136,14 +143,14 @@
         }
     });
 
-    // 🔥 Typing detect
+    // Typing
     document.getElementById("message").addEventListener("input", function() {
 
         if (!typing) {
             typing = true;
             socket.emit("typing", {
                 username: username,
-                room: room
+                room: "main"
             });
         }
 
@@ -156,30 +163,31 @@
             typing = false;
             socket.emit("stop_typing", {
                 username: username,
-                room: room
+                room: "main"
             });
         }
     }
 
-    // Receive message
-    socket.on("message", function(msg) {
+    // ✅ FIXED (no extra s)
+    socket.on("private_message", function(data) {
+
         var div = document.createElement("div");
         div.classList.add("message");
 
-        if (msg.startsWith(username + ":")) {
+        if (data.from === username) {
             div.classList.add("sent");
         } else {
             div.classList.add("received");
         }
 
-        div.innerText = msg;
+        div.innerText = data.from + ": " + data.msg;
 
         var messagesDiv = document.getElementById("messages");
         messagesDiv.appendChild(div);
         messagesDiv.scrollTop = messagesDiv.scrollHeight;
     });
 
-    // 🔥 Show typing text
+    // Typing indicator
     socket.on("typing", function(data) {
         if (data.username !== username) {
             document.getElementById("typing-indicator").innerText =
@@ -187,7 +195,7 @@
         }
     });
 
-    socket.on("stop_typing", function(data) {
+    socket.on("stop_typing", function() {
         document.getElementById("typing-indicator").innerText = "";
     });
 </script>

@@ -4,4 +4,13 @@
     <input name="password" type="password" placeholder="Password">
     <button type="submit">Register</button>
 </form>
+
+{% if error %}
+<div class="alert alert-danger">
+    {{ error }}
+</div>
+{% endif %}
+ 
+
+
 <a href="/login">Login</a>
