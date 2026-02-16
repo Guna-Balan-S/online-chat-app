@@ -18,7 +18,8 @@ socketio = SocketIO(
     transports=["polling"]
 )
 
-DATABASE = 'users.db'
+DATABASE = 'users_fresh.db'
+
 users = {}
 
 # ------------------ DATABASE ------------------
