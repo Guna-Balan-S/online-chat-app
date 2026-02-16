@@ -47,11 +47,9 @@
     <!-- LEFT SIDEBAR -->
     <div class="col-3 bg-dark text-white p-3">
       <h5 class="mb-4">💬 Chats</h5>
-      <div class="list-group">
-        <a href="#" class="list-group-item list-group-item-action active">
-          Main Room
-        </a>
-      </div>
+      <div class="list-group" id="userList">
+     </div>
+
     </div>
 
     <!-- RIGHT CHAT AREA -->
@@ -195,9 +193,41 @@
         }
     });
 
+
+
     socket.on("stop_typing", function() {
         document.getElementById("typing-indicator").innerText = "";
     });
+
+var selectedUser = null;
+
+// Load users from backend
+fetch('/users')
+.then(response => response.json())
+.then(data => {
+
+    var list = document.getElementById("userList");
+    list.innerHTML = "";
+
+    data.users.forEach(function(user) {
+
+        if (user !== username) {
+
+            var item = document.createElement("a");
+            item.className = "list-group-item list-group-item-action";
+            item.innerText = user;
+
+            item.onclick = function() {
+                selectedUser = user;
+                document.querySelector("h6").innerText = user;
+                document.getElementById("messages").innerHTML = "";
+            };
+
+            list.appendChild(item);
+        }
+    });
+});
+
 </script>
 
 </body>
