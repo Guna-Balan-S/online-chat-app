@@ -108,11 +108,19 @@ def handle_private(data):
     sender = data['from']
 
     if recipient in users:
-        emit(
-            'private_message',
-            f"(Private) {sender}: {message}",
-            to=users[recipient]
-        )
+        emit('private_message',
+             f"(Private) {sender}: {message}",
+             to=users[recipient])
+
+    # ALSO send back to sender
+    emit('private_message',
+         f"(Private) You: {message}",
+         to=request.sid)
+
+@socketio.on('connect')
+def handle_connect():
+    print("User connected:", request.sid)
+
 
 # ------------------ RUN ------------------
 
