@@ -18,3 +18,28 @@ body {
     padding: 10px;
     margin-bottom: 10px;
 }
+
+.message {
+    max-width: 60%;
+    padding: 10px 15px;
+    border-radius: 18px;
+    margin-bottom: 10px;
+    position: relative;
+    clear: both;
+    font-size: 14px;
+}
+
+.sent {
+    background-color: #dcf8c6;
+    float: right;
+}
+
+.received {
+    background-color: white;
+    float: left;
+}
+
+#messages {
+    display: flex;
+    flex-direction: column;
+}

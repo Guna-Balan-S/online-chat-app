@@ -4,6 +4,8 @@ eventlet.monkey_patch()
 from flask import Flask, render_template, request, redirect, session
 from flask_socketio import SocketIO, send, join_room, emit
 import sqlite3
+from werkzeug.security import generate_password_hash, check_password_hash
+
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'secret!'
@@ -49,10 +51,14 @@ def login():
 
         conn = sqlite3.connect('users.db')
         user = conn.execute(
-            'SELECT * FROM users WHERE username=? AND password=?',
-            (username, password)
+             'SELECT * FROM users WHERE username=?',
+              (username,)
         ).fetchone()
-        conn.close()
+
+        if user and check_password_hash(user[2], password):
+               session['username'] = username
+               return redirect('/')
+
 
         if user:
             session['username'] = username
@@ -67,12 +73,13 @@ def register():
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
+        hashed_password = generate_password_hash(password)
 
         conn = sqlite3.connect('users.db')
         try:
             conn.execute(
                 'INSERT INTO users (username, password) VALUES (?, ?)',
-                (username, password)
+                (username, hashed_password)
             )
             conn.commit()
         except:
@@ -120,6 +127,14 @@ def handle_private(data):
 @socketio.on('connect')
 def handle_connect():
     print("User connected:", request.sid)
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    for username, sid in list(users.items()):
+        if sid == request.sid:
+            del users[username]
+            break
+
 
 
 # ------------------ RUN ------------------
