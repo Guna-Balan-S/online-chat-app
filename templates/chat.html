@@ -2,9 +2,7 @@
 <html>
 <head>
     <title>Online Chat</title>
-
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-
     <style>
         body { overflow: hidden; }
 
@@ -17,8 +15,15 @@
             word-wrap: break-word;
         }
 
-        .sent { background: #dcf8c6; align-self: flex-end; }
-        .received { background: white; align-self: flex-start; }
+        .sent {
+            background: #dcf8c6;
+            align-self: flex-end;
+        }
+
+        .received {
+            background: white;
+            align-self: flex-start;
+        }
 
         #messages {
             display: flex;
@@ -26,7 +31,6 @@
         }
     </style>
 </head>
-
 <body>
 
 <div class="container-fluid vh-100">
@@ -42,7 +46,7 @@
                placeholder="Enter room name">
 
         <button class="btn btn-success w-100 mb-3"
-                onclick="joinRoom()">Join Room</button>
+                onclick="joinRoom()">Create / Join</button>
 
         <div class="list-group mb-4" id="roomList"></div>
 
@@ -59,7 +63,7 @@
 
     </div>
 
-    <!-- RIGHT CHAT -->
+    <!-- RIGHT SIDE -->
     <div class="col-9 d-flex flex-column">
 
         <div class="p-3 border-bottom">
@@ -72,7 +76,8 @@
 
         <div class="p-3 border-top bg-light">
             <div class="input-group">
-                <input id="message" class="form-control"
+                <input id="message"
+                       class="form-control"
                        placeholder="Type message">
                 <button onclick="sendMessage()"
                         class="btn btn-success">Send</button>
@@ -87,7 +92,6 @@
 <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 
 <script>
-
 var socket = io();
 var username = "{{ username }}";
 
@@ -97,10 +101,9 @@ var selectedUser = null;
 var roomMessages = {};
 var privateMessages = {};
 
+
 /* JOIN ROOM */
-
 function joinRoom() {
-
     var room = document.getElementById("roomName").value.trim();
     if (room === "") return;
 
@@ -114,16 +117,37 @@ function joinRoom() {
 
     document.getElementById("chatHeader").innerText = room;
 
+    addRoomToSidebar(room);
+
     if (!roomMessages[room])
         roomMessages[room] = [];
 
     loadMessages(roomMessages[room]);
+
+    document.getElementById("roomName").value = "";
 }
 
+function addRoomToSidebar(room) {
+    if (document.getElementById("room-" + room)) return;
+
+    var item = document.createElement("a");
+    item.className = "list-group-item list-group-item-action";
+    item.id = "room-" + room;
+    item.innerText = room;
+
+    item.onclick = function() {
+        currentRoom = room;
+        selectedUser = null;
+        document.getElementById("chatHeader").innerText = room;
+        loadMessages(roomMessages[room] || []);
+    };
+
+    document.getElementById("roomList").appendChild(item);
+}
+
+
 /* PRIVATE CHAT */
-
 function startPrivateChat() {
-
     var user = document.getElementById("privateUser").value.trim();
     if (user === "" || user === username) return;
 
@@ -135,34 +159,53 @@ function startPrivateChat() {
     if (!privateMessages[user])
         privateMessages[user] = [];
 
+    addPrivateToSidebar(user);
+
     loadMessages(privateMessages[user]);
+
+    document.getElementById("privateUser").value = "";
 }
 
+function addPrivateToSidebar(user) {
+    if (document.getElementById("private-" + user)) return;
+
+    var item = document.createElement("a");
+    item.className = "list-group-item list-group-item-action";
+    item.id = "private-" + user;
+    item.innerText = user;
+
+    item.onclick = function() {
+        selectedUser = user;
+        currentRoom = null;
+        document.getElementById("chatHeader").innerText = user;
+        loadMessages(privateMessages[user] || []);
+    };
+
+    document.getElementById("privateList").appendChild(item);
+}
+
+
 /* SEND MESSAGE */
-
 function sendMessage() {
-
     var input = document.getElementById("message");
     var msg = input.value.trim();
     if (msg === "") return;
 
     if (currentRoom) {
-
         socket.emit("room_message", {
             from: username,
             msg: msg,
             room: currentRoom
         });
-
-    } else if (selectedUser) {
-
+    }
+    else if (selectedUser) {
         socket.emit("private_message", {
             from: username,
             to: selectedUser,
             msg: msg
         });
-
-    } else {
+    }
+    else {
         alert("Select room or user first");
         return;
     }
@@ -170,9 +213,9 @@ function sendMessage() {
     input.value = "";
 }
 
-/* RECEIVE ROOM MESSAGE */
 
-socket.on("room_message", function(data){
+/* RECEIVE ROOM MESSAGE */
+socket.on("room_message", function(data) {
 
     if (!roomMessages[data.room])
         roomMessages[data.room] = [];
@@ -183,9 +226,9 @@ socket.on("room_message", function(data){
         display(data);
 });
 
-/* RECEIVE PRIVATE MESSAGE */
 
-socket.on("private_message", function(data){
+/* RECEIVE PRIVATE MESSAGE */
+socket.on("private_message", function(data) {
 
     var chatUser = (data.from === username)
         ? data.to
@@ -200,10 +243,9 @@ socket.on("private_message", function(data){
         display(data);
 });
 
+
 /* DISPLAY */
-
-function display(data){
-
+function display(data) {
     var div = document.createElement("div");
     div.classList.add("message");
 
@@ -219,12 +261,11 @@ function display(data){
     box.scrollTop = box.scrollHeight;
 }
 
-function loadMessages(list){
+function loadMessages(list) {
     var box = document.getElementById("messages");
     box.innerHTML = "";
     list.forEach(display);
 }
-
 </script>
 
 </body>

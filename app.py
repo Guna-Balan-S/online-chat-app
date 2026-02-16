@@ -2,37 +2,32 @@ import eventlet
 eventlet.monkey_patch()
 
 from flask import Flask, render_template, request, redirect, session
-from flask_socketio import SocketIO, join_room, emit
+from flask_socketio import SocketIO, join_room, leave_room, emit
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
-
-# ------------------ APP CONFIG ------------------
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'super-secret-key'
 
-socketio = SocketIO(
-    app,
-    cors_allowed_origins="*",
-    async_mode="eventlet"
-)
+socketio = SocketIO(app, cors_allowed_origins="*")
 
-DATABASE = 'users.db'
+DATABASE = "users.db"
 
-users = {}  # username -> socket id
+users = {}          # username -> socket id
+user_rooms = {}     # username -> current room
 
 
 # ------------------ DATABASE ------------------
 
 def init_db():
     conn = sqlite3.connect(DATABASE)
-    conn.execute('''
+    conn.execute("""
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT UNIQUE NOT NULL,
             password TEXT NOT NULL
         )
-    ''')
+    """)
     conn.close()
 
 init_db()
@@ -47,16 +42,6 @@ def index():
     return redirect('/login')
 
 
-@app.route('/users')
-def get_users():
-    conn = sqlite3.connect(DATABASE)
-    users_list = conn.execute(
-        'SELECT username FROM users'
-    ).fetchall()
-    conn.close()
-    return {'users': [u[0] for u in users_list]}
-
-
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
@@ -65,7 +50,7 @@ def login():
 
         conn = sqlite3.connect(DATABASE)
         user = conn.execute(
-            'SELECT * FROM users WHERE username=?',
+            "SELECT * FROM users WHERE username=?",
             (username,)
         ).fetchone()
         conn.close()
@@ -84,14 +69,13 @@ def login():
 def register():
     if request.method == 'POST':
         username = request.form['username']
-        password = request.form['password']
-        hashed_password = generate_password_hash(password)
+        password = generate_password_hash(request.form['password'])
 
         conn = sqlite3.connect(DATABASE)
         try:
             conn.execute(
-                'INSERT INTO users (username, password) VALUES (?, ?)',
-                (username, hashed_password)
+                "INSERT INTO users (username, password) VALUES (?, ?)",
+                (username, password)
             )
             conn.commit()
         except sqlite3.IntegrityError:
@@ -99,7 +83,6 @@ def register():
             return render_template('register.html',
                                    error="User already exists")
         conn.close()
-
         return redirect('/login')
 
     return render_template('register.html')
@@ -116,33 +99,40 @@ def handle_connect():
 def handle_disconnect():
     for username, sid in list(users.items()):
         if sid == request.sid:
-            del users[username]
+            users.pop(username)
+            user_rooms.pop(username, None)
             break
 
 
 # 🔵 JOIN ROOM
 @socketio.on('join_room_event')
-def handle_join_room(data):
+def handle_join(data):
     username = data['username']
     room = data['room']
 
     users[username] = request.sid
-    join_room(room)
 
-    emit('room_joined', {'room': room}, to=request.sid)
+    # Leave previous room if exists
+    if username in user_rooms:
+        leave_room(user_rooms[username])
+
+    join_room(room)
+    user_rooms[username] = room
+
+    emit("room_joined", {"room": room}, to=request.sid)
 
 
 # 🔵 ROOM MESSAGE
 @socketio.on('room_message')
 def handle_room_message(data):
     emit(
-        'room_message',
+        "room_message",
         {
-            'from': data['from'],
-            'msg': data['msg'],
-            'room': data['room']
+            "from": data["from"],
+            "msg": data["msg"],
+            "room": data["room"]
         },
-        to=data['room']
+        to=data["room"]
     )
 
 
@@ -155,22 +145,22 @@ def handle_private(data):
 
     if recipient in users:
         emit(
-            'private_message',
+            "private_message",
             {
-                'from': sender,
-                'to': recipient,
-                'msg': message
+                "from": sender,
+                "to": recipient,
+                "msg": message
             },
             to=users[recipient]
         )
 
-    # Send back to sender
+    # send back to sender
     emit(
-        'private_message',
+        "private_message",
         {
-            'from': sender,
-            'to': recipient,
-            'msg': message
+            "from": sender,
+            "to": recipient,
+            "msg": message
         },
         to=request.sid
     )
