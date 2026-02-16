@@ -8,28 +8,25 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
 
     <style>
-        body {
-            overflow: hidden;
-        }
+        body { overflow: hidden; }
 
         .message {
             max-width: 60%;
             padding: 10px 15px;
             border-radius: 18px;
             margin-bottom: 10px;
-            clear: both;
             font-size: 14px;
             word-wrap: break-word;
         }
 
         .sent {
             background-color: #dcf8c6;
-            float: right;
+            align-self: flex-end;
         }
 
         .received {
             background-color: white;
-            float: left;
+            align-self: flex-start;
         }
 
         #messages {
@@ -40,50 +37,46 @@
 </head>
 
 <body>
-
 <div class="container-fluid vh-100">
   <div class="row h-100">
 
     <!-- LEFT SIDEBAR -->
     <div class="col-3 bg-dark text-white p-3">
-      <h5 class="mb-4">💬 Chats</h5>
-      <div class="list-group" id="userList">
-     </div>
-
+        <h5 class="mb-4">💬 Chats</h5>
+        <div class="list-group" id="userList"></div>
     </div>
 
     <!-- RIGHT CHAT AREA -->
     <div class="col-9 d-flex flex-column">
 
-      <!-- Header -->
-      <div class="p-3 border-bottom d-flex align-items-center">
-        <div class="rounded-circle bg-primary text-white d-flex justify-content-center align-items-center"
-             style="width:40px;height:40px;">
-          {{ username[0]|upper }}
+        <!-- Header -->
+        <div class="p-3 border-bottom d-flex align-items-center">
+            <div class="rounded-circle bg-primary text-white d-flex justify-content-center align-items-center"
+                 style="width:40px;height:40px;">
+                {{ username[0]|upper }}
+            </div>
+            <h6 class="ms-3 mb-0" id="chatHeader">Select a user</h6>
         </div>
-        <h6 class="ms-3 mb-0">Main Chat Room</h6>
-      </div>
 
-      <!-- Messages -->
-      <div id="messages" class="flex-grow-1 p-3"
-           style="overflow-y:auto; background:#ece5dd;">
-      </div>
+        <!-- Messages -->
+        <div id="messages" class="flex-grow-1 p-3"
+             style="overflow-y:auto; background:#ece5dd;"></div>
 
-      <!-- 🔥 Typing Indicator -->
-      <div id="typing-indicator"
-           style="height:20px; font-size:14px; color:gray; padding-left:15px;">
-      </div>
-
-      <!-- Input -->
-      <div class="p-3 border-top bg-light">
-        <div class="input-group">
-          <input id="message" type="text" class="form-control"
-                 placeholder="Type a message...">
-          <button onclick="sendMessage()" class="btn btn-success">
-            <i class="bi bi-send-fill"></i>
-          </button>
+        <!-- Typing Indicator -->
+        <div id="typing-indicator"
+             style="height:20px; font-size:14px; color:gray; padding-left:15px;">
         </div>
-      </div>
+
+        <!-- Input -->
+        <div class="p-3 border-top bg-light">
+            <div class="input-group">
+                <input id="message" type="text" class="form-control"
+                       placeholder="Type a message...">
+                <button onclick="sendMessage()" class="btn btn-success">
+                    <i class="bi bi-send-fill"></i>
+                </button>
+            </div>
+        </div>
 
     </div>
   </div>
@@ -93,117 +86,31 @@
 <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 
 <script>
-    var socket = io({
-        transports: ["polling"],
-        upgrade: false
-    });
 
-    var username = "{{ username }}";
-    var selectedUser = null;   // ✅ IMPORTANT
-    var typing = false;
-    var timeout = undefined;
+var socket = io({
+    transports: ["polling"],
+    upgrade: false
+});
 
-    // Auto join main
-    socket.on("connect", function() {
-        socket.emit("join", {
-            username: username,
-            room: "main"
-        });
-    });
-
-    // Send Private Message
-    function sendMessage() {
-
-        if (!selectedUser) {
-            alert("Select a user to chat");
-            return;
-        }
-
-        var input = document.getElementById("message");
-        var message = input.value.trim();
-
-        if (message === "") return;
-
-        socket.emit("private_message", {
-            from: username,
-            to: selectedUser,
-            msg: message
-        });
-
-        input.value = "";
-        stopTyping();
-    }
-
-    // Enter key
-    document.getElementById("message").addEventListener("keypress", function(e) {
-        if (e.key === "Enter") {
-            sendMessage();
-        }
-    });
-
-    // Typing
-    document.getElementById("message").addEventListener("input", function() {
-
-        if (!typing) {
-            typing = true;
-            socket.emit("typing", {
-                username: username,
-                room: "main"
-            });
-        }
-
-        clearTimeout(timeout);
-        timeout = setTimeout(stopTyping, 1000);
-    });
-
-    function stopTyping() {
-        if (typing) {
-            typing = false;
-            socket.emit("stop_typing", {
-                username: username,
-                room: "main"
-            });
-        }
-    }
-
-    // ✅ FIXED (no extra s)
-    socket.on("private_message", function(data) {
-
-        var div = document.createElement("div");
-        div.classList.add("message");
-
-        if (data.from === username) {
-            div.classList.add("sent");
-        } else {
-            div.classList.add("received");
-        }
-
-        div.innerText = data.from + ": " + data.msg;
-
-        var messagesDiv = document.getElementById("messages");
-        messagesDiv.appendChild(div);
-        messagesDiv.scrollTop = messagesDiv.scrollHeight;
-    });
-
-    // Typing indicator
-    socket.on("typing", function(data) {
-        if (data.username !== username) {
-            document.getElementById("typing-indicator").innerText =
-                data.username + " is typing...";
-        }
-    });
-
-
-
-    socket.on("stop_typing", function() {
-        document.getElementById("typing-indicator").innerText = "";
-    });
-
+var username = "{{ username }}";
 var selectedUser = null;
+var conversations = {};
+var typing = false;
+var timeout = undefined;
 
-// Load users from backend
+/* ---------------- JOIN ---------------- */
+
+socket.on("connect", function() {
+    socket.emit("join", {
+        username: username,
+        room: "main"
+    });
+});
+
+/* ---------------- LOAD USERS ---------------- */
+
 fetch('/users')
-.then(response => response.json())
+.then(res => res.json())
 .then(data => {
 
     var list = document.getElementById("userList");
@@ -219,8 +126,8 @@ fetch('/users')
 
             item.onclick = function() {
                 selectedUser = user;
-                document.querySelector("h6").innerText = user;
-                document.getElementById("messages").innerHTML = "";
+                document.getElementById("chatHeader").innerText = user;
+                loadConversation(user);
             };
 
             list.appendChild(item);
@@ -228,7 +135,128 @@ fetch('/users')
     });
 });
 
-</script>
+/* ---------------- SEND MESSAGE ---------------- */
 
+function sendMessage() {
+
+    if (!selectedUser) {
+        alert("Select a user to chat");
+        return;
+    }
+
+    var input = document.getElementById("message");
+    var message = input.value.trim();
+
+    if (message === "") return;
+
+    socket.emit("private_message", {
+        from: username,
+        to: selectedUser,
+        msg: message
+    });
+
+    input.value = "";
+    stopTyping();
+}
+
+/* ---------------- ENTER KEY ---------------- */
+
+document.getElementById("message")
+.addEventListener("keypress", function(e) {
+    if (e.key === "Enter") {
+        sendMessage();
+    }
+});
+
+/* ---------------- DISPLAY MESSAGE ---------------- */
+
+function displayMessage(data) {
+
+    var div = document.createElement("div");
+    div.classList.add("message");
+
+    if (data.from === username) {
+        div.classList.add("sent");
+    } else {
+        div.classList.add("received");
+    }
+
+    div.innerText = data.from + ": " + data.msg;
+
+    var messagesDiv = document.getElementById("messages");
+    messagesDiv.appendChild(div);
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+}
+
+/* ---------------- LOAD CONVERSATION ---------------- */
+
+function loadConversation(user) {
+
+    var messagesDiv = document.getElementById("messages");
+    messagesDiv.innerHTML = "";
+
+    if (conversations[user]) {
+        conversations[user].forEach(displayMessage);
+    }
+}
+
+/* ---------------- RECEIVE PRIVATE MESSAGE ---------------- */
+
+socket.on("private_message", function(data) {
+
+    var chatUser = (data.from === username)
+        ? selectedUser
+        : data.from;
+
+    if (!conversations[chatUser]) {
+        conversations[chatUser] = [];
+    }
+
+    conversations[chatUser].push(data);
+
+    if (selectedUser === chatUser) {
+        displayMessage(data);
+    }
+});
+
+/* ---------------- TYPING SYSTEM ---------------- */
+
+document.getElementById("message")
+.addEventListener("input", function() {
+
+    if (!typing) {
+        typing = true;
+        socket.emit("typing", {
+            username: username,
+            room: "main"
+        });
+    }
+
+    clearTimeout(timeout);
+    timeout = setTimeout(stopTyping, 1000);
+});
+
+function stopTyping() {
+    if (typing) {
+        typing = false;
+        socket.emit("stop_typing", {
+            username: username,
+            room: "main"
+        });
+    }
+}
+
+socket.on("typing", function(data) {
+    if (data.username !== username && selectedUser === data.username) {
+        document.getElementById("typing-indicator")
+        .innerText = data.username + " is typing...";
+    }
+});
+
+socket.on("stop_typing", function() {
+    document.getElementById("typing-indicator").innerText = "";
+});
+
+</script>
 </body>
 </html>
