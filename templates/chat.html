@@ -44,8 +44,19 @@
 
         <div class="list-group mb-4" id="roomList"></div>
 
-        <h6>👤 Private Chats</h6>
-        <div class="list-group" id="userList"></div>
+        <h6>👤 Private Chat</h6>
+
+       <input type="text" id="privateUsername"
+              class="form-control mb-2"
+              placeholder="Enter username">
+
+       <button class="btn btn-primary w-100 mb-3"
+              onclick="startPrivateChat()">
+              Start Private Chat
+      </button>
+
+      <div class="list-group" id="privateList"></div>
+
 
     </div>
 
@@ -230,6 +241,48 @@ function sendMessage() {
     input.value = "";
 }
 
+
+function startPrivateChat() {
+
+    var user = document.getElementById("privateUsername").value.trim();
+
+    if (user === "" || user === username) {
+        alert("Enter valid username");
+        return;
+    }
+
+    selectedUser = user;
+    currentRoom = null;
+
+    document.getElementById("chatHeader").innerText = user;
+
+    addPrivateToList(user);
+    loadPrivateMessages(user);
+
+    document.getElementById("privateUsername").value = "";
+}
+
+
+function addPrivateToList(user) {
+
+    if (document.getElementById("private-" + user)) return;
+
+    var item = document.createElement("a");
+    item.className = "list-group-item list-group-item-action";
+    item.id = "private-" + user;
+    item.innerText = user;
+
+    item.onclick = function() {
+        selectedUser = user;
+        currentRoom = null;
+        document.getElementById("chatHeader").innerText = user;
+        loadPrivateMessages(user);
+    };
+
+    document.getElementById("privateList").appendChild(item);
+}
+
+
 /* ================= RECEIVE ROOM MESSAGE ================= */
 
 socket.on("room_message", function(data){
@@ -248,13 +301,15 @@ socket.on("room_message", function(data){
 socket.on("private_message", function(data){
 
     var chatUser = (data.from === username)
-        ? selectedUser
+        ? data.to
         : data.from;
 
     if (!privateConversations[chatUser])
         privateConversations[chatUser] = [];
 
     privateConversations[chatUser].push(data);
+
+    addPrivateToList(chatUser);
 
     if (selectedUser === chatUser)
         displayMessage(data);
