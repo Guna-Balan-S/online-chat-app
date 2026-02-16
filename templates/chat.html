@@ -71,6 +71,11 @@
            style="overflow-y:auto; background:#ece5dd;">
       </div>
 
+      <!-- 🔥 Typing Indicator -->
+      <div id="typing-indicator"
+           style="height:20px; font-size:14px; color:gray; padding-left:15px;">
+      </div>
+
       <!-- Input -->
       <div class="p-3 border-top bg-light">
         <div class="input-group">
@@ -97,8 +102,10 @@
 
     var username = "{{ username }}";
     var room = "main";
+    var typing = false;
+    var timeout = undefined;
 
-    // Auto join when connected
+    // Auto join
     socket.on("connect", function() {
         socket.emit("join", {
             username: username,
@@ -111,7 +118,7 @@
         var input = document.getElementById("message");
         var message = input.value.trim();
 
-        if (message === "") return;   // prevent empty message
+        if (message === "") return;
 
         socket.emit("message", {
             msg: username + ": " + message,
@@ -119,14 +126,40 @@
         });
 
         input.value = "";
+        stopTyping();
     }
 
-    // Send on Enter key
+    // Enter key
     document.getElementById("message").addEventListener("keypress", function(e) {
         if (e.key === "Enter") {
             sendMessage();
         }
     });
+
+    // 🔥 Typing detect
+    document.getElementById("message").addEventListener("input", function() {
+
+        if (!typing) {
+            typing = true;
+            socket.emit("typing", {
+                username: username,
+                room: room
+            });
+        }
+
+        clearTimeout(timeout);
+        timeout = setTimeout(stopTyping, 1000);
+    });
+
+    function stopTyping() {
+        if (typing) {
+            typing = false;
+            socket.emit("stop_typing", {
+                username: username,
+                room: room
+            });
+        }
+    }
 
     // Receive message
     socket.on("message", function(msg) {
@@ -144,6 +177,18 @@
         var messagesDiv = document.getElementById("messages");
         messagesDiv.appendChild(div);
         messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    });
+
+    // 🔥 Show typing text
+    socket.on("typing", function(data) {
+        if (data.username !== username) {
+            document.getElementById("typing-indicator").innerText =
+                data.username + " is typing...";
+        }
+    });
+
+    socket.on("stop_typing", function(data) {
+        document.getElementById("typing-indicator").innerText = "";
     });
 </script>
 

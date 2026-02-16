@@ -96,6 +96,15 @@ def register():
 
 # ------------------ SOCKET EVENTS ------------------
 
+@socketio.on('typing')
+def handle_typing(data):
+    emit('typing', data, to=data['room'], include_self=False)
+
+@socketio.on('stop_typing')
+def handle_stop_typing(data):
+    emit('stop_typing', data, to=data['room'], include_self=False)
+
+
 @socketio.on('join')
 def handle_join(data):
     username = data['username']
