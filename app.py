@@ -11,7 +11,8 @@ app.config['SECRET_KEY'] = 'super-secret-key'
 
 socketio = SocketIO(app, cors_allowed_origins="*")
 
-DATABASE = "users.db"
+DATABASE = 'users_new.db'
+
 
 users = {}          # username -> socket id
 user_rooms = {}     # username -> current room
