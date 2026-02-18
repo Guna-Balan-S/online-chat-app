@@ -4,35 +4,42 @@ eventlet.monkey_patch()
 from flask import Flask, render_template, request, redirect, session
 from flask_socketio import SocketIO, join_room, leave_room, emit
 from werkzeug.security import generate_password_hash, check_password_hash
-import sqlite3
+import psycopg2
+import os
+
+# ------------------ APP CONFIG ------------------
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'super-secret-key'
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode="eventlet")
 
-socketio = SocketIO(app, cors_allowed_origins="*")
-
-DATABASE = 'users_new.db'
-
+# Use environment variable from Render
+DATABASE_URL = os.environ.get("DATABASE_URL")
 
 users = {}          # username -> socket id
 user_rooms = {}     # username -> current room
 
-
 # ------------------ DATABASE ------------------
 
+def get_db_connection():
+    return psycopg2.connect(DATABASE_URL)
+
+
 def init_db():
-    conn = sqlite3.connect(DATABASE)
-    conn.execute("""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("""
         CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE NOT NULL,
+            id SERIAL PRIMARY KEY,
+            username VARCHAR(150) UNIQUE NOT NULL,
             password TEXT NOT NULL
-        )
+        );
     """)
+    conn.commit()
+    cur.close()
     conn.close()
 
 init_db()
-
 
 # ------------------ ROUTES ------------------
 
@@ -49,19 +56,18 @@ def login():
         username = request.form['username']
         password = request.form['password']
 
-        conn = sqlite3.connect(DATABASE)
-        user = conn.execute(
-            "SELECT * FROM users WHERE username=?",
-            (username,)
-        ).fetchone()
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT password FROM users WHERE username = %s", (username,))
+        user = cur.fetchone()
+        cur.close()
         conn.close()
 
-        if user and check_password_hash(user[2], password):
+        if user and check_password_hash(user[0], password):
             session['username'] = username
             return redirect('/')
 
-        return render_template('login.html',
-                               error="Invalid username or password")
+        return render_template('login.html', error="Invalid username or password")
 
     return render_template('login.html')
 
@@ -72,22 +78,26 @@ def register():
         username = request.form['username']
         password = generate_password_hash(request.form['password'])
 
-        conn = sqlite3.connect(DATABASE)
+        conn = get_db_connection()
+        cur = conn.cursor()
+
         try:
-            conn.execute(
-                "INSERT INTO users (username, password) VALUES (?, ?)",
+            cur.execute(
+                "INSERT INTO users (username, password) VALUES (%s, %s)",
                 (username, password)
             )
             conn.commit()
-        except sqlite3.IntegrityError:
+        except psycopg2.Error:
+            conn.rollback()
+            cur.close()
             conn.close()
-            return render_template('register.html',
-                                   error="User already exists")
+            return render_template('register.html', error="User already exists")
+
+        cur.close()
         conn.close()
         return redirect('/login')
 
     return render_template('register.html')
-
 
 # ------------------ SOCKET EVENTS ------------------
 
@@ -105,7 +115,6 @@ def handle_disconnect():
             break
 
 
-# 🔵 JOIN ROOM
 @socketio.on('join_room_event')
 def handle_join(data):
     username = data['username']
@@ -113,7 +122,6 @@ def handle_join(data):
 
     users[username] = request.sid
 
-    # Leave previous room if exists
     if username in user_rooms:
         leave_room(user_rooms[username])
 
@@ -123,7 +131,6 @@ def handle_join(data):
     emit("room_joined", {"room": room}, to=request.sid)
 
 
-# 🔵 ROOM MESSAGE
 @socketio.on('room_message')
 def handle_room_message(data):
     emit(
@@ -137,7 +144,6 @@ def handle_room_message(data):
     )
 
 
-# 🔵 PRIVATE MESSAGE
 @socketio.on('private_message')
 def handle_private(data):
     sender = data['from']
@@ -155,7 +161,6 @@ def handle_private(data):
             to=users[recipient]
         )
 
-    # send back to sender
     emit(
         "private_message",
         {
@@ -165,7 +170,6 @@ def handle_private(data):
         },
         to=request.sid
     )
-
 
 # ------------------ RUN ------------------
 
