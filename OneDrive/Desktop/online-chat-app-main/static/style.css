@@ -1,0 +1,29 @@
+body {
+    background-color: #ece5dd;
+    font-family: Arial, sans-serif;
+    overflow: hidden;
+}
+
+.message {
+    max-width: 60%;
+    padding: 10px 15px;
+    border-radius: 18px;
+    margin-bottom: 10px;
+    font-size: 14px;
+    word-wrap: break-word;
+}
+
+.sent {
+    background-color: #dcf8c6;
+    align-self: flex-end;
+}
+
+.received {
+    background-color: white;
+    align-self: flex-start;
+}
+
+#messages {
+    display: flex;
+    flex-direction: column;
+}
